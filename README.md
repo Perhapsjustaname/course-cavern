@@ -24,11 +24,37 @@ password is random and different on every machine.
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | Database, migrations, admin seed, then the dev server on port 3000 |
+| `npm run share` | Production build on this machine, plus a temporary public link for testers |
 | `npm run build` | Production build. Needs no database |
 | `npm start` | Serve the production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:migrate` | Apply any new migrations without starting the app |
 | `npm run db:reset` | Wipe the local database and uploaded files, then rebuild. Stop `npm run dev` first |
+
+## Let other people try it
+
+```bash
+npm run share
+```
+
+Builds a production version, runs it on your laptop, and prints a link like
+`https://some-random-words.trycloudflare.com` that anyone can open. Nothing is deployed; the link
+goes through a free Cloudflare quick tunnel straight to your machine.
+
+- Needs `cloudflared` on your PATH, from Cloudflare's
+  [official releases](https://github.com/cloudflare/cloudflared/releases). No account required.
+- The link stops working when you press Ctrl+C, close the terminal, or the laptop sleeps or loses
+  its connection. It keeps the Mac from idle-sleeping while it runs, but closing the lid still
+  sleeps it. Every run gives a new link.
+- The app only listens on `127.0.0.1`, so the tunnel is the only way in. Nobody on the same Wi-Fi
+  can reach it directly.
+- Testers' accounts, courses and uploads land in your local database and `storage/`. Ask them to
+  upload made-up documents, not real licences or IDs.
+- You approve their applications by signing in as admin through the same link. Use the link
+  rather than `127.0.0.1`: the production session cookie is HTTPS only, and some browsers will
+  not keep it over plain HTTP.
+
+Runs on port 3100 so it can sit alongside `npm run dev`. Set `SHARE_PORT` to change it.
 
 ## What works
 

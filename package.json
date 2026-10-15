@@ -7,6 +7,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
+    "share": "node scripts/share.mjs",
     "typecheck": "tsc --noEmit",
     "db:reset": "node scripts/db.mjs reset",
     "db:migrate": "node scripts/db.mjs migrate"
