@@ -40,3 +40,6 @@ Thumbs.db
 
 # misc
 .vercel
+
+# uploaded files in local development
+storage/

@@ -28,8 +28,22 @@
   --color-md-tertiary: #7d5260;
   --color-md-on-tertiary: #ffffff;
 
+  /* Container roles. MD3 baseline values for the #6750A4 seed, used for
+     status chips and anything that needs a softer version of an accent. */
+  --color-md-primary-container: #eaddff;
+  --color-md-on-primary-container: #21005d;
+  --color-md-tertiary-container: #ffd8e4;
+  --color-md-on-tertiary-container: #31111d;
+
+  /* Error. Same baseline. Form validation and rejected states only. */
+  --color-md-error: #b3261e;
+  --color-md-on-error: #ffffff;
+  --color-md-error-container: #f9dedc;
+  --color-md-on-error-container: #410e0b;
+
   /* Lines */
   --color-md-outline: #79747e;
+  --color-md-outline-variant: #cac4d0;
   --color-md-border: #79747e;
 
   /* Shape scale. Buttons and chips use rounded-full instead. */

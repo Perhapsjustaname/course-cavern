@@ -1,6 +1,4 @@
 -- Course Cavern, initial schema.
--- Mirrors src/lib/schema.ts, which is what the /development page renders.
--- Change one, change the other.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -8,7 +6,9 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE users (
     id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    email             text NOT NULL UNIQUE,
+    name              text NOT NULL,
+    -- Stored lowercased so 'Sam@x.com' and 'sam@x.com' are one account.
+    email             text NOT NULL UNIQUE CHECK (email = lower(email)),
     password_hash     text NOT NULL,
     role              text NOT NULL DEFAULT 'student'
                           CHECK (role IN ('student', 'instructor', 'admin')),
@@ -24,8 +24,9 @@ CREATE TABLE instructor_profile (
     headline          text,
     bio               text,
     industry          text,
+    years_experience  integer CHECK (years_experience BETWEEN 0 AND 80),
     status            text NOT NULL DEFAULT 'draft'
-                          CHECK (status IN ('draft', 'pending', 'approved', 'rejected')),
+                          CHECK (status IN ('draft', 'pending', 'more_info', 'approved', 'rejected')),
     verified_at       timestamptz,
     stripe_account_id text UNIQUE,
     created_at        timestamptz NOT NULL DEFAULT now(),
@@ -40,15 +41,22 @@ CREATE TABLE credential (
     issuer        text,
     issued_on     date,
     expires_on    date,
+    -- Private storage key. Served only through an authorised route, never public.
     document_key  text NOT NULL,
+    file_name     text NOT NULL,
+    mime_type     text NOT NULL,
+    size_bytes    integer NOT NULL CHECK (size_bytes > 0),
     verified      boolean NOT NULL DEFAULT false,
-    created_at    timestamptz NOT NULL DEFAULT now()
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    CHECK (expires_on IS NULL OR issued_on IS NULL OR expires_on >= issued_on)
 );
 CREATE INDEX credential_instructor_idx ON credential (instructor_id);
 
+-- One application per instructor. Its status moves; the history lives in
+-- application_decision, so nothing about a past decision is ever lost.
 CREATE TABLE application (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    instructor_id uuid NOT NULL REFERENCES instructor_profile (id) ON DELETE CASCADE,
+    instructor_id uuid NOT NULL UNIQUE REFERENCES instructor_profile (id) ON DELETE CASCADE,
     status        text NOT NULL DEFAULT 'pending'
                       CHECK (status IN ('pending', 'more_info', 'approved', 'rejected')),
     submitted_at  timestamptz NOT NULL DEFAULT now(),
@@ -78,23 +86,38 @@ CREATE TABLE course (
     description   text,
     industry      text,
     level         text CHECK (level IN ('beginner', 'intermediate', 'advanced')),
-    price_cents   integer NOT NULL CHECK (price_cents >= 0),
+    price_cents   integer NOT NULL DEFAULT 0 CHECK (price_cents >= 0),
     currency      char(3) NOT NULL DEFAULT 'CAD',
     status        text NOT NULL DEFAULT 'draft'
-                      CHECK (status IN ('draft', 'in_review', 'published', 'rejected')),
+                      CHECK (status IN ('draft', 'in_review', 'changes_requested', 'published')),
+    submitted_at  timestamptz,
     published_at  timestamptz,
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX course_catalogue_idx ON course (status, industry, level);
+CREATE INDEX course_instructor_idx ON course (instructor_id, updated_at DESC);
 
+-- Same append-only rule as applications: course review history is kept whole.
+CREATE TABLE course_decision (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id  uuid NOT NULL REFERENCES course (id) ON DELETE CASCADE,
+    admin_id   uuid NOT NULL REFERENCES users (id),
+    decision   text NOT NULL CHECK (decision IN ('approved', 'changes_requested')),
+    note       text,
+    decided_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX course_decision_course_idx ON course_decision (course_id, decided_at);
+
+-- Positions are deferrable so two rows can swap places inside one transaction
+-- without tripping the unique check halfway through.
 CREATE TABLE section (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id  uuid NOT NULL REFERENCES course (id) ON DELETE CASCADE,
     title      text NOT NULL,
     position   integer NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (course_id, position)
+    CONSTRAINT section_position_unique UNIQUE (course_id, position) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE lesson (
@@ -103,10 +126,10 @@ CREATE TABLE lesson (
     title            text NOT NULL,
     kind             text NOT NULL CHECK (kind IN ('video', 'audio', 'pdf', 'text', 'quiz')),
     content_key      text,
-    duration_seconds integer,
+    duration_minutes integer CHECK (duration_minutes BETWEEN 1 AND 600),
     position         integer NOT NULL,
     created_at       timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (section_id, position)
+    CONSTRAINT lesson_position_unique UNIQUE (section_id, position) DEFERRABLE INITIALLY DEFERRED
 );
 
 -- ---------------------------------------------------------------- learning --

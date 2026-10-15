@@ -1,0 +1,39 @@
+import Link from 'next/link';
+import { StatusChip } from '@/components/status-chip';
+import { LEVELS } from '@/lib/constants';
+import type { CourseCard as Row } from '@/lib/courses';
+import { formatMinutes, formatPrice, plural, relativeDays } from '@/lib/format';
+
+const LEVEL = Object.fromEntries(LEVELS.map((l) => [l.value, l.label]));
+
+export function CourseCard({ course, href, byline }: { course: Row; href: string; byline?: string }) {
+  const meta = [course.level && LEVEL[course.level], course.industry].filter(Boolean).join('  ·  ');
+  const shape = [
+    plural(course.section_count, 'section'),
+    plural(course.lesson_count, 'lesson'),
+    formatMinutes(course.total_minutes),
+  ].filter(Boolean).join('  ·  ');
+
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col rounded-md3-lg bg-md-surface-container p-6 shadow-sm transition-all duration-300 ease-md3 hover:scale-[1.02] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-md-primary active:scale-[0.99]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <StatusChip status={course.status} />
+        <span className="text-label-md font-medium text-md-on-surface-variant">
+          {formatPrice(course.price_cents, course.currency)}
+        </span>
+      </div>
+      <h3 className="mt-4 text-title-lg leading-snug text-md-on-surface transition-colors duration-200 group-hover:text-md-primary">
+        {course.title}
+      </h3>
+      {byline ? <p className="mt-1 text-label-md text-md-on-surface-variant">{byline}</p> : null}
+      {meta ? <p className="mt-2 text-label-md text-md-on-surface-variant">{meta}</p> : null}
+      <div className="mt-auto pt-6">
+        <p className="text-label-sm text-md-on-surface-variant">{shape}</p>
+        <p className="mt-1 text-label-sm text-md-on-surface-variant/80">Updated {relativeDays(course.updated_at)}</p>
+      </div>
+    </Link>
+  );
+}
