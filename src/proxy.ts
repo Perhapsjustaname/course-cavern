@@ -18,6 +18,26 @@ export async function proxy(request: NextRequest) {
   return NextResponse.redirect(login);
 }
 
+/**
+ * Two things this matcher must keep doing:
+ *
+ * 1. Skip Server Action requests (they carry a `next-action` header). Whenever
+ *    proxy runs, Next buffers the request body and silently cuts it off at
+ *    10 MB, so an application with two large photos arrived truncated and
+ *    failed with "Unexpected end of form". Actions check their own access
+ *    through lib/dal.ts, so the proxy adds nothing for them anyway.
+ *
+ * 2. Never match /api. Uploads stream through /api routes and would be cut
+ *    off the same way.
+ *
+ * Values must stay literal: Next reads this at build time and ignores anything
+ * computed, like a .map() over a list of paths.
+ */
 export const config = {
-  matcher: ['/account', '/apply', '/instructor/:path*', '/admin/:path*'],
+  matcher: [
+    { source: '/account', missing: [{ type: 'header', key: 'next-action' }] },
+    { source: '/apply', missing: [{ type: 'header', key: 'next-action' }] },
+    { source: '/instructor/:path*', missing: [{ type: 'header', key: 'next-action' }] },
+    { source: '/admin/:path*', missing: [{ type: 'header', key: 'next-action' }] },
+  ],
 };
