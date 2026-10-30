@@ -1,7 +1,10 @@
+import Link from 'next/link';
 import { ButtonLink } from '@/components/button';
 import { Card } from '@/components/card';
 import { BlurField } from '@/components/blur-field';
+import { CatalogueCard } from '@/components/learn/catalogue-card';
 import { getCurrentUser, homeFor } from '@/lib/dal';
+import { listCatalogue } from '@/lib/learning';
 
 const STEPS = [
   {
@@ -95,13 +98,13 @@ function ExampleProfile() {
 }
 
 export default async function HomePage() {
-  const user = await getCurrentUser();
+  const [user, latest] = await Promise.all([getCurrentUser(), listCatalogue({}, 3)]);
   const primary =
     user?.role === 'admin'
       ? { href: homeFor(user), label: 'Open the review queue' }
       : user?.instructor
         ? { href: '/instructor', label: 'Go to your dashboard' }
-        : { href: user ? '/apply' : '/signup?next=/apply', label: 'Apply to teach' };
+        : { href: '/courses', label: 'Browse courses' };
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
@@ -112,7 +115,7 @@ export default async function HomePage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-md-secondary-container px-4 py-1.5 text-label-sm font-medium tracking-[0.01em] text-md-on-secondary-container">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-md-primary" />
-              Now taking instructor applications
+              {latest.length ? 'Courses are open for enrolment' : 'Now taking instructor applications'}
             </span>
 
             <h1 className="mt-6 text-[2.5rem] leading-[1.08] font-medium tracking-tight text-md-on-background sm:text-display-lg">
@@ -138,6 +141,25 @@ export default async function HomePage() {
           <ExampleProfile />
         </div>
       </section>
+
+      {latest.length ? (
+        <section className="pt-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-[1.75rem] font-medium tracking-tight sm:text-headline-md">New in the catalogue</h2>
+              <p className="mt-2 text-body-md text-md-on-surface-variant">Open one to see every lesson in it, and who checked the instructor.</p>
+            </div>
+            <Link href="/courses" className="rounded-full px-4 py-2 text-label-md font-medium text-md-primary hover:bg-md-primary/10">
+              See all courses
+            </Link>
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {latest.map((c) => (
+              <CatalogueCard key={c.id} course={c} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* How it works */}
       <section id="how-it-works" className="scroll-mt-24 pt-24">

@@ -8,33 +8,37 @@ const NAV_LINK =
   'transition-all duration-300 ease-md3 hover:bg-md-primary/10 hover:text-md-primary';
 
 function navFor(user: CurrentUser | null) {
-  const links = [
-    { href: '/#how-it-works', label: 'How it works' },
-    { href: '/#for-instructors', label: 'For instructors' },
-  ];
+  const links = [{ href: '/courses', label: 'Browse courses' }];
   if (user?.role === 'admin') links.push({ href: '/admin', label: 'Review queue' });
   else if (user?.instructor) links.push({ href: '/instructor', label: 'My courses' });
+  else if (user) links.push({ href: '/learning', label: 'My learning' });
+  if (!user) links.push({ href: '/#how-it-works', label: 'How it works' });
+  if (!user?.instructor && user?.role !== 'admin') links.push({ href: '/#for-instructors', label: 'For instructors' });
   return links;
 }
 
 function menuFor(user: CurrentUser) {
+  // Anyone can enrol in a course, so everyone gets My learning.
+  const shared = [
+    { href: '/learning', label: 'My learning' },
+    { href: '/account', label: 'Account settings' },
+  ];
   if (user.role === 'admin') {
     return [
       { href: '/admin', label: 'Review queue' },
       { href: '/admin/applications', label: 'Applications' },
       { href: '/admin/courses', label: 'Courses' },
+      ...shared,
     ];
   }
   if (user.instructor) {
     return [
-      { href: '/instructor', label: 'Dashboard' },
+      { href: '/instructor', label: 'Teaching dashboard' },
       { href: '/instructor/courses/new', label: 'New course' },
+      ...shared,
     ];
   }
-  return [
-    { href: '/account', label: 'Your account' },
-    { href: '/apply', label: 'Apply to teach' },
-  ];
+  return [...shared, { href: '/apply', label: 'Apply to teach' }];
 }
 
 export async function SiteHeader() {
@@ -77,8 +81,8 @@ export async function SiteHeader() {
                 {/* Wrapped, not styled directly: `hidden` on the button would
                     lose to its own `inline-flex` base. */}
                 <div className="hidden sm:block">
-                  <ButtonLink href="/signup?next=/apply" size="sm">
-                    Apply to teach
+                  <ButtonLink href="/signup" size="sm">
+                    Create account
                   </ButtonLink>
                 </div>
               </>

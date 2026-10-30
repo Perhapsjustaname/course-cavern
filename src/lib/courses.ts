@@ -81,12 +81,20 @@ export type CourseCard = Pick<Course, 'id' | 'title' | 'status' | 'updated_at' |
   section_count: number;
   lesson_count: number;
   total_minutes: number;
+  student_count: number;
 };
 
 const CARD_COUNTS = `
   (SELECT count(*)::int FROM section s WHERE s.course_id = c.id) AS section_count,
   (SELECT count(*)::int FROM lesson l JOIN section s ON s.id = l.section_id WHERE s.course_id = c.id) AS lesson_count,
-  (SELECT coalesce(sum(l.duration_minutes), 0)::int FROM lesson l JOIN section s ON s.id = l.section_id WHERE s.course_id = c.id) AS total_minutes`;
+  (SELECT coalesce(sum(l.duration_minutes), 0)::int FROM lesson l JOIN section s ON s.id = l.section_id WHERE s.course_id = c.id) AS total_minutes,
+  (SELECT count(*)::int FROM enrolment e WHERE e.course_id = c.id) AS student_count`;
+
+/** How many students are enrolled. Courses with any can never be deleted. */
+export async function countStudents(courseId: string) {
+  const row = await queryOne<{ n: number }>('SELECT count(*)::int AS n FROM enrolment WHERE course_id = $1', [courseId]);
+  return row?.n ?? 0;
+}
 
 export async function listCoursesForInstructor(instructorId: string) {
   return query<CourseCard>(

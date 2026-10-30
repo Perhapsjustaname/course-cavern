@@ -33,12 +33,14 @@ export function SubmitPanel({
   checks,
   submittedLabel,
   publishedLabel,
+  students = 0,
 }: {
   courseId: string;
   status: CourseStatus;
   checks: Check[];
   submittedLabel?: string;
   publishedLabel?: string;
+  students?: number;
 }) {
   const action = useMemo(() => submitCourse.bind(null, courseId), [courseId]);
   const { state, pending, onSubmit } = useFormAction<FormState>(action, undefined);
@@ -65,6 +67,12 @@ export function SubmitPanel({
           >
             It disappears from the catalogue straight away and goes back to draft. You will need to send it
             for review again before anyone can buy it.
+            {students ? (
+              <span className="mt-3 block font-medium text-md-on-surface">
+                {students === 1 ? 'One student is' : `${students} students are`} enrolled. They keep their place and
+                progress, but cannot open any lessons until it is approved again.
+              </span>
+            ) : null}
           </PasswordConfirm>
         </div>
       </div>

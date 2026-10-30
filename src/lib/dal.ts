@@ -97,7 +97,7 @@ export async function requireInstructor(returnTo = '/instructor') {
 export function homePath(role: Role, hasInstructorProfile: boolean): string {
   if (role === 'admin') return '/admin';
   if (hasInstructorProfile) return '/instructor';
-  return '/account';
+  return '/learning';
 }
 
 export function homeFor(user: CurrentUser): string {

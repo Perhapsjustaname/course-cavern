@@ -19,14 +19,25 @@ const optionalDate = z.preprocess(
 const values = <T extends readonly { value: string }[]>(list: T) =>
   list.map((x) => x.value) as [T[number]['value'], ...T[number]['value'][]];
 
+const fullName = z.string().trim().min(2, 'Enter your full name.').max(100, 'That name is too long.');
+const newPassword = z.string().min(10, 'Use at least 10 characters.').max(200, 'That password is too long.');
+
 export const signupSchema = z.object({
-  name: z.string().trim().min(2, 'Enter your full name.').max(100, 'That name is too long.'),
+  name: fullName,
   email: z.email('Enter a valid email address.').transform((e) => e.toLowerCase()),
-  password: z
-    .string()
-    .min(10, 'Use at least 10 characters.')
-    .max(200, 'That password is too long.'),
+  password: newPassword,
 });
+
+export const nameSchema = z.object({ name: fullName });
+
+export const passwordChangeSchema = z
+  .object({
+    current: z.string().min(1, 'Enter your current password.'),
+    password: newPassword,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, { path: ['confirm'], message: 'The two new passwords do not match.' })
+  .refine((v) => v.password !== v.current, { path: ['password'], message: 'Choose a password different from the current one.' });
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address.').transform((e) => e.toLowerCase()),

@@ -24,15 +24,27 @@ export default async function SignupPage({ searchParams }: Props) {
           : 'One account works whether you are here to learn or to teach.'
       }
       aside={
-        <AsideSteps
-          heading={teaching ? 'What applying involves' : 'How teaching here works'}
-          steps={[
-            'Tell us about your work and how long you have been doing it.',
-            'Upload proof: a licence, a certification, or an employment record.',
-            'A reviewer checks it, usually within a few working days.',
-            'Once approved, your courses can go live.',
-          ]}
-        />
+        teaching ? (
+          <AsideSteps
+            heading="What applying involves"
+            steps={[
+              'Tell us about your work and how long you have been doing it.',
+              'Upload proof: a licence, a certification, or an employment record.',
+              'A reviewer checks it, usually within a few working days.',
+              'Once approved, your courses can go live.',
+            ]}
+          />
+        ) : (
+          <AsideSteps
+            heading="How learning here works"
+            steps={[
+              'Find a course. Its page lists every lesson and what was checked about the instructor.',
+              'Try any free preview lessons before you commit.',
+              'Enrol and work through it at your own pace.',
+              'Your progress is saved, so you can stop and pick it up again later.',
+            ]}
+          />
+        )
       }
     >
       <SignupForm next={next} />

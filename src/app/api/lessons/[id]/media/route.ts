@@ -75,23 +75,39 @@ export async function POST(req: Request, { params }: Params) {
 }
 
 /**
- * Play or download a lesson's file. Its instructor can always see it; admins
- * once the course has been sent for review. Drafts stay private.
+ * Play or download a lesson's file. Its instructor can always see it, and
+ * admins once the course has been sent for review. While the course is live,
+ * so can its enrolled students, and anyone at all if the lesson is a free
+ * preview. Drafts stay private.
  */
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
   if (!isUuid(id)) return jsonError(404, 'Not found.');
   const user = await getCurrentUser();
-  if (!user) return jsonError(401, 'Sign in to see this.');
 
-  const row = await queryOne<{ content_key: string | null; mime_type: string | null; file_name: string | null; owner_id: string; status: CourseStatus }>(
-    `SELECT l.content_key, l.mime_type, l.file_name, p.user_id AS owner_id, c.status
+  const row = await queryOne<{
+    content_key: string | null;
+    mime_type: string | null;
+    file_name: string | null;
+    owner_id: string;
+    status: CourseStatus;
+    live: boolean;
+    is_preview: boolean;
+    enrolled: boolean;
+  }>(
+    `SELECT l.content_key, l.mime_type, l.file_name, p.user_id AS owner_id, c.status, l.is_preview,
+            (c.status = 'published' AND p.status = 'approved') AS live,
+            EXISTS (SELECT 1 FROM enrolment e WHERE e.course_id = c.id AND e.user_id = $2) AS enrolled
        FROM lesson l JOIN section s ON s.id = l.section_id JOIN course c ON c.id = s.course_id
        JOIN instructor_profile p ON p.id = c.instructor_id
       WHERE l.id = $1`,
-    [id],
+    [id, user?.id ?? null],
   );
-  const allowed = row && (row.owner_id === user.id || (user.role === 'admin' && row.status !== 'draft'));
+  const allowed =
+    row &&
+    ((user && (row.owner_id === user.id || (user.role === 'admin' && row.status !== 'draft'))) ||
+      (row.live && (row.is_preview || row.enrolled)));
+  if (!allowed && !user) return jsonError(401, 'Sign in to see this.');
   if (!row || !allowed || !row.content_key) return jsonError(404, 'Not found.');
 
   const size = await sizeOfPrivate(row.content_key);

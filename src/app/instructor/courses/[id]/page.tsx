@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireInstructor } from '@/lib/dal';
-import { getCourseDecisions, getOutline, getOwnedCourse, isEditable, readinessChecks } from '@/lib/courses';
+import { countStudents, getCourseDecisions, getOutline, getOwnedCourse, isEditable, readinessChecks } from '@/lib/courses';
 import { isUuid } from '@/lib/ids';
 import { CurriculumEditor } from '@/components/course/curriculum-editor';
 import { SubmitPanel } from '@/components/course/submit-panel';
 import { StatusChip } from '@/components/status-chip';
 import { Notice } from '@/components/notice';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime, plural } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Curriculum | Course Cavern' };
 
@@ -23,7 +24,12 @@ export default async function CurriculumPage({ params, searchParams }: Props) {
   const course = await getOwnedCourse(id, instructor.id);
   if (!course) notFound();
 
-  const [outline, decisions, sp] = await Promise.all([getOutline(id), getCourseDecisions(id), searchParams]);
+  const [outline, decisions, students, sp] = await Promise.all([
+    getOutline(id),
+    getCourseDecisions(id),
+    countStudents(id),
+    searchParams,
+  ]);
   const editable = isEditable(course.status);
   const checks = readinessChecks(course, outline, instructor.status === 'approved');
   const latest = decisions[0];
@@ -54,7 +60,17 @@ export default async function CurriculumPage({ params, searchParams }: Props) {
             checks={checks}
             submittedLabel={course.submitted_at ? `Sent ${formatDateTime(course.submitted_at)}` : undefined}
             publishedLabel={course.published_at ? `Went live ${formatDate(course.published_at)}` : undefined}
+            students={students}
           />
+          {course.status === 'published' ? (
+            <Link
+              href={`/courses/${course.slug}`}
+              className="group rounded-md3-lg bg-md-surface-container px-5 py-4 transition-all duration-200 ease-md3 hover:shadow-md"
+            >
+              <span className="block text-label-sm text-md-on-surface-variant">{plural(students, 'student')} enrolled</span>
+              <span className="block text-label-md font-medium text-md-primary group-hover:underline">See the page students see</span>
+            </Link>
+          ) : null}
           {decisions.length ? (
             <div className="rounded-md3-lg bg-md-surface-container p-6">
               <p className="text-title-lg">Review history</p>

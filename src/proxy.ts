@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     { source: '/account', missing: [{ type: 'header', key: 'next-action' }] },
+    { source: '/learning', missing: [{ type: 'header', key: 'next-action' }] },
     { source: '/apply', missing: [{ type: 'header', key: 'next-action' }] },
     { source: '/instructor/:path*', missing: [{ type: 'header', key: 'next-action' }] },
     { source: '/admin/:path*', missing: [{ type: 'header', key: 'next-action' }] },

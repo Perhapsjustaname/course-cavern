@@ -8,7 +8,7 @@ import type { PoolClient } from 'pg';
 import { isUniqueViolation, query, queryOne, withTransaction } from '@/lib/db';
 import { requireInstructor } from '@/lib/dal';
 import { isUuid } from '@/lib/ids';
-import { getOutline, getOwnedCourse, isEditable, readinessChecks, type CourseStatus } from '@/lib/courses';
+import { countStudents, getOutline, getOwnedCourse, isEditable, readinessChecks, type CourseStatus } from '@/lib/courses';
 import { isMediaKind } from '@/lib/media';
 import { cleanRichText } from '@/lib/rich-text';
 import { removePrivate } from '@/lib/storage';
@@ -204,6 +204,8 @@ export async function deleteCourse(courseId: string, _prev: FormState, form: For
   if (!owned) return { message: 'Course not found.' };
   // Published courses may have students. They are never deleted from here.
   if (!isEditable(owned.status)) return { message: 'Only drafts can be deleted. Unpublish it first.' };
+  // Nor is a course that was live once and still has students enrolled.
+  if (await countStudents(courseId)) return { message: 'Students are enrolled in this course, so it cannot be deleted.' };
   const wrong = await checkPassword(user.id, form.get('password'));
   if (wrong) return { errors: { password: [wrong] } };
 
@@ -216,7 +218,12 @@ export async function deleteCourse(courseId: string, _prev: FormState, form: For
       [courseId],
     );
     // Checked again here in case it was sent for review a moment ago.
-    const gone = await db.query("DELETE FROM course WHERE id = $1 AND status IN ('draft', 'changes_requested')", [courseId]);
+    const gone = await db.query(
+      `DELETE FROM course c
+        WHERE c.id = $1 AND c.status IN ('draft', 'changes_requested')
+          AND NOT EXISTS (SELECT 1 FROM enrolment e WHERE e.course_id = c.id)`,
+      [courseId],
+    );
     return gone.rowCount === 1 ? rows : null;
   });
   if (!files) return { message: 'Only drafts can be deleted. Unpublish it first.' };

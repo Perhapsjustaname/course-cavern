@@ -58,8 +58,22 @@ Runs on port 3100 so it can sit alongside `npm run dev`. Set `SHARE_PORT` to cha
 
 ## What works
 
-From the inception document: Apply to teach, Review an application, and Publish a course, apart
-from the public catalogue a published course goes into.
+From the inception document: Apply to teach, Review an application, Publish a course, Find a
+course, and Buy and take a course apart from the buying. Payments are not switched on yet, so
+enrolling is free for now and the course pages say so.
+
+**Students** sign up, browse the catalogue, and search or filter it by industry, level and price.
+A course page lists every lesson, shows what a reviewer checked about the instructor, and opens
+any free preview lessons to anyone, signed in or not. Once enrolled:
+
+- Lessons play in a course player with the whole outline beside them. Videos and audio tick
+  themselves off when they play to the end; other lessons have a Mark as done button.
+- Quizzes are marked on the server. A wrong answer shows its explanation but not the right
+  answer, until the quiz is passed. Passing ticks the lesson off, and every attempt is kept.
+- Doing every lesson finishes the course. Unticking one, or a lesson added later, unfinishes it.
+- My learning lists their courses with progress, and Continue goes back to the lesson they were
+  last on.
+- Account settings change the name and the password.
 
 **Instructors** sign up, then apply with a profile and up to five documents (PDF, JPG, PNG or
 WebP, 8 MB each). While the application is in review they can already build courses.
@@ -79,7 +93,8 @@ WebP, 8 MB each). While the application is in review they can already build cour
 
 Once the instructor is approved, a checklist shows what is still missing, and the course goes to
 review when everything is ticked. It is locked while in review and while live. Taking a live
-course offline to edit it, and deleting a course, both ask for the password again.
+course offline to edit it, and deleting a course, both ask for the password again. Instructors
+see how many students each course has, and can open their own course the way students see it.
 
 **Admins** work through a queue of applications, open each document, and approve, turn down or
 ask for more. Asking for more pauses the application and shows the instructor the note. Courses
@@ -88,8 +103,8 @@ reading, and see each quiz with the right answers marked, then publish or send i
 changes. Every decision is kept, with who made it and when, and a decision can be reopened later
 if it was wrong.
 
-Not built yet: the public catalogue, buying and taking courses, payouts, email, and password
-reset.
+Not built yet: payments and payouts, reviews and ratings, instructor sales figures, email, and
+password reset.
 
 ## How it fits together
 
@@ -101,6 +116,7 @@ src/lib/db.ts           Postgres pool, query helpers, transactions
 src/lib/storage.ts      private file storage: documents, lesson files, thumbnails
 src/lib/media.ts        allowed file types, size limits and byte signatures, for browser and server
 src/lib/rich-text.ts    cleans rich text against an allowlist, on save and again on display
+src/lib/learning.ts     the catalogue, enrolments, progress and quizzes as students see them
 src/lib/validation.ts   form validation, with the error messages users see
 src/app/actions/        Server Actions: auth, applying, courses, admin decisions
 src/app/api/            routes that stream uploads in and serve private files back out
@@ -131,6 +147,11 @@ A few decisions worth knowing before changing anything:
   `src/lib/media.ts`. Once uploads go straight to object storage in production it can go up.
 - **Rich text is cleaned twice.** Once when saved and again when shown, against the allowlist in
   `src/lib/rich-text.ts`. Scripts, event handlers and `javascript:` links are dropped.
+- **Quiz answers never reach the browser before marking.** The page gets questions and choices
+  only. Answers go to the `submitQuiz` Server Action, which marks them against the database.
+- **Live means published and the instructor still approved.** Taking a course offline, or an
+  instructor losing approval, takes it out of the catalogue and closes its lessons. Enrolments
+  and progress stay, and a course with students can never be deleted.
 - **Decisions are append only.** `application_decision` and `course_decision` are never updated
   or deleted. Each decision and the status change it causes are written in one transaction.
 - **Money is integer cents.** Never a float.

@@ -45,7 +45,7 @@ export async function signup(_prev: AuthState, form: FormData): Promise<AuthStat
 
   await createSession(userId);
   // Outside the try on purpose: redirect() throws to do its job.
-  redirect(safeNext(raw.next) ?? '/account');
+  redirect(safeNext(raw.next) ?? '/learning');
 }
 
 export async function login(_prev: AuthState, form: FormData): Promise<AuthState> {

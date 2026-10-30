@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { requireInstructor } from '@/lib/dal';
-import { getOwnedCourse, isEditable } from '@/lib/courses';
+import { countStudents, getOwnedCourse, isEditable } from '@/lib/courses';
 import { isUuid } from '@/lib/ids';
 import { deleteCourse } from '@/app/actions/courses';
 import { DetailsForm } from '@/components/course/course-forms';
@@ -18,6 +18,7 @@ export default async function DetailsPage({ params }: { params: Promise<{ id: st
   const course = await getOwnedCourse(id, instructor.id);
   if (!course) notFound();
   const editable = isEditable(course.status);
+  const students = await countStudents(course.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -64,7 +65,15 @@ export default async function DetailsPage({ params }: { params: Promise<{ id: st
         </aside>
       </div>
 
-      {editable ? (
+      {editable && students ? (
+        <section className="rounded-md3-lg border border-md-outline/25 p-6">
+          <p className="text-body-md font-medium">This course cannot be deleted</p>
+          <p className="mt-0.5 text-label-md text-md-on-surface-variant">
+            {students === 1 ? 'A student is' : `${students} students are`} enrolled, and they keep access to what they
+            signed up for. Change it here and send it for review again instead.
+          </p>
+        </section>
+      ) : editable ? (
         <section className="flex flex-col gap-4 rounded-md3-lg border border-md-error/25 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-body-md font-medium">Delete this course</p>
