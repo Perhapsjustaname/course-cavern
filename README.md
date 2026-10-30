@@ -15,7 +15,7 @@ Then open <http://localhost:3000>.
 
 That one command starts a real Postgres 17 database, applies the schema, creates an admin
 account and runs the app. Nothing else to install, on Mac or Windows. The database lives in
-`.localdb/` and uploaded documents in `storage/`, both ignored by git.
+`.localdb/` and uploaded files in `storage/`, both ignored by git.
 
 The first run also writes `.env.local` with a session secret and the admin's sign-in details.
 **To sign in as admin**, use `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` from that file. The
@@ -58,21 +58,38 @@ Runs on port 3100 so it can sit alongside `npm run dev`. Set `SHARE_PORT` to cha
 
 ## What works
 
-Use cases 1, 2 and 3 from the inception document: apply to teach, review an application,
-publish a course.
+From the inception document: Apply to teach, Review an application, and Publish a course, apart
+from the public catalogue a published course goes into.
 
 **Instructors** sign up, then apply with a profile and up to five documents (PDF, JPG, PNG or
-WebP, 8 MB each). While the application is in review they can already build courses: details,
-then an outline of sections and lessons that can be added, edited, reordered and deleted. Once
-approved, a course goes to review from a checklist that shows exactly what is still missing.
+WebP, 8 MB each). While the application is in review they can already build courses.
+
+**The course builder** has three tabs.
+
+- **Curriculum.** Sections, each with an optional description, and lessons inside them. Both can
+  be dragged into a new order or moved with the arrow buttons, which also work by keyboard and on
+  phones. A lesson can be moved to another section.
+- **Lessons** are a video, audio, PDF, reading or quiz. Files upload with a progress bar and a
+  cancel button, up to 100 MB, and video and audio length is read from the file. Readings use a
+  rich text editor. Quiz questions have 2 to 6 answers, one marked right, each with an optional
+  explanation. Any lesson can be a free preview.
+- **Details.** Title, summary, industry, level, a rich text description, and a thumbnail that is
+  resized in the browser before it uploads.
+- **Pricing.** The price in Canadian dollars, or 0 for free.
+
+Once the instructor is approved, a checklist shows what is still missing, and the course goes to
+review when everything is ticked. It is locked while in review and while live. Taking a live
+course offline to edit it, and deleting a course, both ask for the password again.
 
 **Admins** work through a queue of applications, open each document, and approve, turn down or
 ask for more. Asking for more pauses the application and shows the instructor the note. Courses
-get the same treatment: publish, or send back with changes. Every decision is kept, with who
-made it and when, and a decision can be reopened later if it was wrong.
+get the same treatment: the reviewer can play every video and audio file, read every PDF and
+reading, and see each quiz with the right answers marked, then publish or send it back with
+changes. Every decision is kept, with who made it and when, and a decision can be reopened later
+if it was wrong.
 
-Not built yet: the public catalogue, buying and taking courses, payouts, lesson media uploads,
-email, and password reset.
+Not built yet: the public catalogue, buying and taking courses, payouts, email, and password
+reset.
 
 ## How it fits together
 
@@ -81,9 +98,12 @@ src/proxy.ts            redirects signed-out visitors before protected pages ren
 src/lib/dal.ts          who is signed in and what they may do. Every check goes through here
 src/lib/session.ts      signed session cookie, carrying the user id only
 src/lib/db.ts           Postgres pool, query helpers, transactions
-src/lib/storage.ts      private file storage for uploaded documents
+src/lib/storage.ts      private file storage: documents, lesson files, thumbnails
+src/lib/media.ts        allowed file types, size limits and byte signatures, for browser and server
+src/lib/rich-text.ts    cleans rich text against an allowlist, on save and again on display
 src/lib/validation.ts   form validation, with the error messages users see
 src/app/actions/        Server Actions: auth, applying, courses, admin decisions
+src/app/api/            routes that stream uploads in and serve private files back out
 src/app/                pages
 src/components/         UI, built on the design tokens in src/app/globals.css
 scripts/                the local database and the dev command
@@ -98,9 +118,19 @@ A few decisions worth knowing before changing anything:
   browser and can be changed, so each one re-checks ownership.
 - **The session cookie holds only the user id.** Role and approval status are read fresh on each
   request, so approving an instructor takes effect on their next click.
-- **Documents are never public.** They are stored outside `public/` and served only through
-  `/api/credentials/[id]`, to their owner or an admin. Anyone else gets a 404. Uploads are
-  checked by their actual bytes, not just the type the browser claims.
+- **Uploaded files are private.** They are stored outside `public/` and served only through the
+  routes in `src/app/api/`. Documents go to their owner or an admin. Lesson files go to their
+  owner, and to an admin once the course is sent for review. A thumbnail is public only once its
+  course is published. Anyone else gets a 404. Every upload is checked by its actual bytes, not
+  just the type the browser claims.
+- **Lesson uploads stream straight to disk.** They go through a route handler rather than a
+  Server Action, so a large video is never held in memory. Files are served with HTTP range
+  support, so players can skip ahead without downloading the whole thing.
+- **The 100 MB cap comes from the tunnel.** Cloudflare quick tunnels refuse request bodies over
+  100 MB, so `npm run share` could not accept anything bigger. It is `LESSON_MAX_BYTES` in
+  `src/lib/media.ts`. Once uploads go straight to object storage in production it can go up.
+- **Rich text is cleaned twice.** Once when saved and again when shown, against the allowlist in
+  `src/lib/rich-text.ts`. Scripts, event handlers and `javascript:` links are dropped.
 - **Decisions are append only.** `application_decision` and `course_decision` are never updated
   or deleted. Each decision and the status change it causes are written in one transaction.
 - **Money is integer cents.** Never a float.
@@ -115,8 +145,17 @@ A few decisions worth knowing before changing anything:
 - `z.coerce.number()` in Zod 4 turns a blank field into `0`. Optional numbers go through the
   `blankToUndefined` helper in `lib/validation.ts` first.
 - A Tailwind class passed in through `className` does not reliably beat the same property in a
-  component's base classes. Add a variant to the component instead (see `Button`'s `inverse`), and
-  to hide something at a breakpoint, wrap it.
+  component's base classes. Add a variant to the component instead (see `Button`'s `inverse` and
+  `danger`), and to hide something at a breakpoint, wrap it.
+- The proxy silently cuts request bodies off at 10 MB. Server Actions skip it (its matcher ignores
+  requests with a `next-action` header) and it never matches `/api`. Keep it that way, or large
+  uploads arrive cut short and fail with "Unexpected end of form".
+- `next/image` fetches images on the server without the visitor's cookies, so it cannot load a
+  private one. Thumbnails use a plain `<img>`.
+- React's `cache()` does nothing inside a Server Action. An action always reads fresh data.
+- Tiptap 3 does not re-render on every keystroke by default. Toolbar state comes from
+  `useEditorState`, and the editor keeps an empty paragraph at the end, which
+  `lib/rich-text.ts` trims off on save.
 - The Postgres pool has a size limit and timeouts on purpose. Without them, one connection that
   is never released quietly hangs the whole site.
 

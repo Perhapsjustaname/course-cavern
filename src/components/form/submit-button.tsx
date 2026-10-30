@@ -2,7 +2,7 @@
 
 import { useFormStatus } from 'react-dom';
 import type { ReactNode } from 'react';
-import { Button } from '@/components/button';
+import { Button, type Size, type Variant } from '@/components/button';
 
 /** A submit button that disables itself and says so while the action runs. */
 export function SubmitButton({
@@ -13,16 +13,20 @@ export function SubmitButton({
   className,
   name,
   value,
+  pending: pendingOverride,
 }: {
   children: ReactNode;
   pendingLabel?: string;
-  variant?: 'filled' | 'tonal' | 'outlined' | 'text' | 'inverse';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: Variant;
+  size?: Size;
   className?: string;
   name?: string;
   value?: string;
+  /** For forms submitted through useFormAction, which useFormStatus cannot see. */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingOverride ?? status.pending;
   return (
     <Button
       type="submit"

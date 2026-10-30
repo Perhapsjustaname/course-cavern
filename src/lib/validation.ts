@@ -123,3 +123,41 @@ export function formText(form: FormData, ...keys: string[]): Record<string, stri
   }
   return out;
 }
+
+// ------------------------------------------------------------ course builder --
+
+export const courseDetailsSchema = courseSchema.omit({ price: true, description: true });
+export const priceSchema = courseSchema.pick({ price: true });
+
+export const newLessonSchema = z.object({
+  title: z.string().trim().min(2, 'Name the lesson.').max(150, 'Keep this under 150 characters.'),
+  kind: z.enum(values(LESSON_KINDS), { error: 'Pick what kind of lesson this is.' }),
+});
+
+export const lessonDetailsSchema = z.object({
+  title: z.string().trim().min(2, 'Name the lesson.').max(150, 'Keep this under 150 characters.'),
+  sectionId: z.uuid({ error: 'Pick a section.' }),
+  // A checkbox sends "on" when ticked and nothing at all when not.
+  isPreview: z.preprocess((v) => v === 'on' || v === 'true', z.boolean()),
+  durationMinutes: lessonSchema.shape.durationMinutes,
+  passPercent: z.preprocess(
+    blankToUndefined,
+    z.coerce
+      .number({ error: 'Enter a percentage.' })
+      .int('Use a whole number.')
+      .min(0, 'It cannot be below 0.')
+      .max(100, 'It cannot be above 100.')
+      .optional(),
+  ),
+});
+
+export const MIN_OPTIONS = 2;
+export const MAX_OPTIONS = 6;
+
+export const optionSchema = z.object({
+  text: z.string().trim().min(1, 'Write the answer.').max(500, 'Keep answers under 500 characters.'),
+  explanation: z.preprocess(
+    blankToUndefined,
+    z.string().trim().max(1000, 'Keep the explanation under 1,000 characters.').optional(),
+  ),
+});

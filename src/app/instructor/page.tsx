@@ -7,6 +7,7 @@ import { ButtonLink } from '@/components/button';
 import { CourseCard } from '@/components/course-card';
 import { CredentialList } from '@/components/credential-list';
 import { BlurField } from '@/components/blur-field';
+import { Notice } from '@/components/notice';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -16,7 +17,9 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 export default async function InstructorDashboard({ searchParams }: Props) {
   const { user, instructor } = await requireInstructor();
-  const justSubmitted = (await searchParams).submitted === '1';
+  const query = await searchParams;
+  const justSubmitted = query.submitted === '1';
+  const justDeleted = query.deleted === '1';
 
   const application = await getApplication(instructor.id);
   const [courses, credentials, decisions] = await Promise.all([
@@ -69,6 +72,12 @@ export default async function InstructorDashboard({ searchParams }: Props) {
           New course
         </ButtonLink>
       </div>
+
+      {justDeleted ? (
+        <Notice tone="success" className="mt-8">
+          The course and everything uploaded to it has been deleted.
+        </Notice>
+      ) : null}
 
       <section className={cn('relative mt-8 overflow-hidden rounded-md3-2xl p-7 sm:p-9', panel.tone)}>
         {status === 'approved' ? <BlurField className="opacity-50" /> : null}

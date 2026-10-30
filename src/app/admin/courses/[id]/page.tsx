@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/dal';
 import { queryOne } from '@/lib/db';
-import { getCourse, getCourseDecisions, getOutline } from '@/lib/courses';
+import { getCourse, getCourseDecisions, getOutline, getQuizzesForCourse } from '@/lib/courses';
 import { isUuid } from '@/lib/ids';
-import { OutlineEditor } from '@/components/course/outline-editor';
+import { CourseContent } from '@/components/course/course-content';
+import { RichText } from '@/components/rich-text';
 import { DecisionForm } from '@/components/admin/decision-form';
 import { StatusChip } from '@/components/status-chip';
 import { LEVELS } from '@/lib/constants';
@@ -23,9 +24,10 @@ export default async function ReviewCoursePage({ params }: { params: Promise<{ i
   // Drafts are private to their instructor, admins included.
   if (!course || course.status === 'draft') notFound();
 
-  const [outline, decisions, instructor] = await Promise.all([
+  const [outline, decisions, quizzes, instructor] = await Promise.all([
     getOutline(id),
     getCourseDecisions(id),
+    getQuizzesForCourse(id),
     queryOne<{ display_name: string; headline: string | null; status: string; application_id: string | null }>(
       `SELECT p.display_name, p.headline, p.status, a.id AS application_id
          FROM instructor_profile p LEFT JOIN application a ON a.instructor_id = p.id
@@ -65,35 +67,53 @@ export default async function ReviewCoursePage({ params }: { params: Promise<{ i
 
       <div className="mt-10 grid items-start gap-8 lg:grid-cols-[1fr_22rem]">
         <div className="flex min-w-0 flex-col gap-8">
-          <section className="rounded-md3-2xl bg-md-surface-container p-6 shadow-sm sm:p-8">
-            <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
-              <div>
-                <dt className="text-label-sm text-md-on-surface-variant">Industry</dt>
-                <dd className="text-body-md">{course.industry}</dd>
+          <section className="overflow-hidden rounded-md3-2xl bg-md-surface-container shadow-sm">
+            {course.thumbnail_key ? (
+              // Plain <img>: the image optimiser fetches without the viewer's
+              // cookies, so it could not load a private draft thumbnail.
+              <img
+                src={`/api/courses/${course.id}/thumbnail?v=${new Date(course.updated_at).getTime()}`}
+                alt=""
+                className="aspect-video w-full object-cover"
+              />
+            ) : (
+              <div className="grid aspect-video w-full place-items-center bg-md-error-container/50 text-label-md text-md-on-error-container">
+                No thumbnail
               </div>
-              <div>
-                <dt className="text-label-sm text-md-on-surface-variant">Level</dt>
-                <dd className="text-body-md">{course.level ? LEVEL[course.level] : 'Not set'}</dd>
-              </div>
-              <div>
-                <dt className="text-label-sm text-md-on-surface-variant">Price</dt>
-                <dd className="text-body-md">{formatPrice(course.price_cents, course.currency)}</dd>
-              </div>
-            </dl>
-            <h2 className="mt-8 text-label-md font-medium text-md-on-surface-variant">Summary</h2>
-            <p className="mt-2 text-body-md leading-relaxed">{course.summary}</p>
-            {course.description ? (
-              <>
-                <h2 className="mt-6 text-label-md font-medium text-md-on-surface-variant">Description</h2>
-                <p className="mt-2 text-body-md leading-relaxed whitespace-pre-line">{course.description}</p>
-              </>
-            ) : null}
+            )}
+            <div className="p-6 sm:p-8">
+              <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
+                <div>
+                  <dt className="text-label-sm text-md-on-surface-variant">Industry</dt>
+                  <dd className="text-body-md">{course.industry}</dd>
+                </div>
+                <div>
+                  <dt className="text-label-sm text-md-on-surface-variant">Level</dt>
+                  <dd className="text-body-md">{course.level ? LEVEL[course.level] : 'Not set'}</dd>
+                </div>
+                <div>
+                  <dt className="text-label-sm text-md-on-surface-variant">Price</dt>
+                  <dd className="text-body-md">{formatPrice(course.price_cents, course.currency)}</dd>
+                </div>
+              </dl>
+              <h2 className="mt-8 text-label-md font-medium text-md-on-surface-variant">Summary</h2>
+              <p className="mt-2 text-body-md leading-relaxed">{course.summary}</p>
+              {course.description ? (
+                <>
+                  <h2 className="mt-6 text-label-md font-medium text-md-on-surface-variant">Description</h2>
+                  <RichText html={course.description} className="mt-2" />
+                </>
+              ) : null}
+            </div>
           </section>
 
-          <section className="rounded-md3-2xl bg-md-surface-container-low/50 p-5 sm:p-7">
-            <h2 className="text-[1.5rem] font-medium tracking-tight">Outline</h2>
-            <div className="mt-2">
-              <OutlineEditor courseId={course.id} sections={outline} editable={false} />
+          <section>
+            <h2 className="text-[1.5rem] font-medium tracking-tight">Content</h2>
+            <p className="mt-1 text-label-md text-md-on-surface-variant">
+              Open a lesson to play its media, read it, or see the quiz with its answers marked.
+            </p>
+            <div className="mt-4">
+              <CourseContent sections={outline} quizzes={quizzes} />
             </div>
           </section>
         </div>

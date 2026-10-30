@@ -1,12 +1,17 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { once } from 'node:events';
+import { finished } from 'node:stream/promises';
+import { Readable } from 'node:stream';
 import { dirname, join, resolve } from 'node:path';
+import { bytesMatch } from '@/lib/media';
 
 /**
  * Private file storage. Local disk in development, outside public/ so nothing
  * is reachable by URL. Files are only ever served through a route that checks
- * who is asking. Swapping this for S3 later means replacing these two functions.
+ * who is asking. Swapping this for S3 later means replacing these functions.
  */
 const ROOT = resolve(process.cwd(), 'storage');
 
@@ -17,6 +22,7 @@ const EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+/** Small files that arrive whole inside a form, like application documents. */
 export async function putPrivate(prefix: string, file: File): Promise<string> {
   const key = `${prefix}/${randomUUID()}.${EXT[file.type] ?? 'bin'}`;
   const path = safePath(key);
@@ -29,8 +35,89 @@ export async function getPrivate(key: string): Promise<Buffer> {
   return readFile(safePath(key));
 }
 
-export async function removePrivate(key: string): Promise<void> {
-  await rm(safePath(key), { force: true });
+export async function removePrivate(key: string | null | undefined): Promise<void> {
+  if (key) await rm(safePath(key), { force: true });
+}
+
+/** Size in bytes, or null if the file is missing. */
+export async function sizeOfPrivate(key: string): Promise<number | null> {
+  try {
+    return (await stat(safePath(key))).size;
+  } catch {
+    return null;
+  }
+}
+
+/** A stream of the file, or of one byte range of it, for seeking in video. */
+export function readPrivate(key: string, range?: { start: number; end: number }): ReadableStream<Uint8Array> {
+  const node = createReadStream(safePath(key), range);
+  return Readable.toWeb(node) as ReadableStream<Uint8Array>;
+}
+
+export class UploadError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Write a request body straight to disk as it arrives, rather than holding a
+ * 100 MB video in memory. Checks the file type from its first bytes and stops
+ * early if they are wrong. Refuses anything that ends short of the length the
+ * browser declared, so a dropped connection cannot leave half a file behind.
+ * On any failure the partial file is deleted.
+ */
+export async function streamToPrivate(
+  key: string,
+  body: ReadableStream<Uint8Array>,
+  opts: { type: string; maxBytes: number; expectedBytes: number },
+): Promise<number> {
+  const path = safePath(key);
+  await mkdir(dirname(path), { recursive: true });
+  const out = createWriteStream(path, { flags: 'wx' });
+  const reader = body.getReader();
+
+  let size = 0;
+  let head = new Uint8Array(0);
+  let checked = false;
+  const check = () => {
+    checked = true;
+    if (!bytesMatch(opts.type, head)) {
+      throw new UploadError(415, 'This file does not look like what its name says it is.');
+    }
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > opts.maxBytes) throw new UploadError(413, 'This file is over the size limit.');
+      if (!checked) {
+        const joined = new Uint8Array(head.length + value.length);
+        joined.set(head);
+        joined.set(value, head.length);
+        head = joined.subarray(0, 16);
+        if (head.length >= 16) check();
+      }
+      if (!out.write(value)) await once(out, 'drain');
+    }
+    if (!checked) check();
+    if (size !== opts.expectedBytes) {
+      throw new UploadError(400, 'The upload stopped before the whole file arrived. Try again.');
+    }
+    out.end();
+    await finished(out);
+    return size;
+  } catch (err) {
+    await reader.cancel().catch(() => {});
+    out.destroy();
+    await rm(path, { force: true });
+    throw err;
+  }
 }
 
 /** Keys come from our own database, but never trust a path blindly. */
@@ -42,23 +129,8 @@ function safePath(key: string): string {
   return path;
 }
 
-/**
- * Check the file is what it claims to be from its first bytes, not just the
- * browser-supplied MIME type, which the client controls.
- */
+/** Kept for the application form; delegates to the shared byte checks. */
 export async function sniffMatches(file: File): Promise<boolean> {
-  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  const starts = (...b: number[]) => b.every((v, i) => head[i] === v);
-  switch (file.type) {
-    case 'application/pdf':
-      return starts(0x25, 0x50, 0x44, 0x46); // %PDF
-    case 'image/png':
-      return starts(0x89, 0x50, 0x4e, 0x47);
-    case 'image/jpeg':
-      return starts(0xff, 0xd8, 0xff);
-    case 'image/webp':
-      return starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50;
-    default:
-      return false;
-  }
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  return bytesMatch(file.type, head);
 }

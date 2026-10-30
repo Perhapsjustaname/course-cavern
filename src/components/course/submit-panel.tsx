@@ -1,20 +1,20 @@
 'use client';
 
-import { useActionState, useMemo } from 'react';
-import { submitCourse, withdrawCourse, type FormState } from '@/app/actions/courses';
+import { useMemo } from 'react';
+import { submitCourse, unpublishCourse, withdrawCourse, type FormState } from '@/app/actions/courses';
 import { SubmitButton } from '@/components/form/submit-button';
 import { Notice } from '@/components/notice';
-import type { CourseStatus } from '@/lib/courses';
+import { PasswordConfirm } from '@/components/course/password-confirm';
+import { useFormAction } from '@/components/form/use-form-action';
+import type { Check, CourseStatus } from '@/lib/courses';
 import { cn } from '@/lib/cn';
-
-type Check = { label: string; done: boolean; hint?: string };
 
 function Tick({ done }: { done: boolean }) {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full',
+        'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors duration-300',
         done ? 'bg-md-primary text-md-on-primary' : 'bg-md-surface-container-low ring-1 ring-md-outline/40',
       )}
     >
@@ -41,17 +41,32 @@ export function SubmitPanel({
   publishedLabel?: string;
 }) {
   const action = useMemo(() => submitCourse.bind(null, courseId), [courseId]);
-  const [state, dispatch] = useActionState<FormState, FormData>(action, undefined);
-  const ready = checks.every((c) => c.done);
+  const { state, pending, onSubmit } = useFormAction<FormState>(action, undefined);
+  const unpublish = useMemo(() => unpublishCourse.bind(null, courseId), [courseId]);
+  const done = checks.filter((c) => c.done).length;
+  const ready = done === checks.length;
 
   if (status === 'published') {
     return (
       <div className="rounded-md3-lg bg-md-primary-container p-6 text-md-on-primary-container">
         <p className="text-title-lg">Published</p>
         <p className="mt-2 text-body-md opacity-85">
-          Published courses are locked so students always get what was reviewed.
+          It is locked so students always get what was reviewed. To change something, take it offline. It
+          goes back to draft and needs another review before it is live again.
         </p>
         {publishedLabel ? <p className="mt-3 text-label-sm opacity-75">{publishedLabel}</p> : null}
+        <div className="mt-5">
+          <PasswordConfirm
+            action={unpublish}
+            triggerLabel="Take offline to edit"
+            title="Take this course offline?"
+            confirmLabel="Take it offline"
+            tone="warning"
+          >
+            It disappears from the catalogue straight away and goes back to draft. You will need to send it
+            for review again before anyone can buy it.
+          </PasswordConfirm>
+        </div>
       </div>
     );
   }
@@ -61,8 +76,8 @@ export function SubmitPanel({
       <div className="rounded-md3-lg bg-md-secondary-container p-6 text-md-on-secondary-container">
         <p className="text-title-lg">With a reviewer</p>
         <p className="mt-2 text-body-md opacity-85">
-          It is locked while they look at it. Pull it back if you need to change something; it will
-          go to the back of the queue when you resend it.
+          It is locked while they look at it. Pull it back if you need to change something; it will go to
+          the back of the queue when you resend it.
         </p>
         {submittedLabel ? <p className="mt-3 text-label-sm opacity-75">{submittedLabel}</p> : null}
         <form action={withdrawCourse.bind(null, courseId)} className="mt-5">
@@ -76,10 +91,21 @@ export function SubmitPanel({
 
   return (
     <div className="rounded-md3-lg bg-md-surface-container p-6">
-      <p className="text-title-lg">Ready for review?</p>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-title-lg">Ready for review?</p>
+        <span className="text-label-md text-md-on-surface-variant tabular-nums">
+          {done} of {checks.length}
+        </span>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-md-surface-container-low" aria-hidden="true">
+        <div
+          className="h-full rounded-full bg-md-primary transition-all duration-500 ease-md3"
+          style={{ width: `${(done / checks.length) * 100}%` }}
+        />
+      </div>
       <ul className="mt-5 space-y-3.5">
         {checks.map((c) => (
-          <li key={c.label} className="flex gap-3">
+          <li key={c.key} className="flex gap-3">
             <Tick done={c.done} />
             <div>
               <p className={cn('text-body-md', c.done ? 'text-md-on-surface' : 'text-md-on-surface-variant')}>{c.label}</p>
@@ -95,9 +121,9 @@ export function SubmitPanel({
         </Notice>
       ) : null}
 
-      <form action={dispatch} className="mt-6">
+      <form onSubmit={onSubmit} className="mt-6">
         {ready ? (
-          <SubmitButton size="lg" pendingLabel="Sending" className="w-full">
+          <SubmitButton size="lg" pending={pending} pendingLabel="Sending" className="w-full">
             {status === 'changes_requested' ? 'Send it back for review' : 'Send for review'}
           </SubmitButton>
         ) : (

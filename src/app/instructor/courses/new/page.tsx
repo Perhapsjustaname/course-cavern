@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireInstructor } from '@/lib/dal';
-import { CourseDetailsForm } from '@/components/course/course-details-form';
+import { NewCourseForm } from '@/components/course/course-forms';
 
 export const metadata: Metadata = { title: 'New course | Course Cavern' };
 
@@ -25,9 +25,7 @@ export default async function NewCoursePage() {
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_18rem]">
         <div className="rounded-md3-2xl bg-md-surface-container p-6 shadow-sm sm:p-8">
-          <CourseDetailsForm
-            defaults={{ title: '', summary: '', description: '', industry: '', level: '', price: '' }}
-          />
+          <NewCourseForm />
         </div>
         <aside className="space-y-4 text-label-md leading-relaxed text-md-on-surface-variant">
           {instructor.status !== 'approved' ? (

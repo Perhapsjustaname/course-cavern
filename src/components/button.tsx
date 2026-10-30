@@ -2,8 +2,8 @@ import Link from 'next/link';
 import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-type Variant = 'filled' | 'tonal' | 'outlined' | 'text' | 'inverse';
-type Size = 'sm' | 'md' | 'lg';
+export type Variant = 'filled' | 'tonal' | 'outlined' | 'text' | 'inverse' | 'danger' | 'danger-outlined';
+export type Size = 'sm' | 'md' | 'lg';
 
 /**
  * MD3 state layers work by overlaying the base colour at a lower opacity
@@ -20,6 +20,11 @@ const VARIANTS: Record<Variant, string> = {
   // For use on primary/tertiary containers, where a filled button would vanish.
   inverse:
     'bg-md-background text-md-primary hover:bg-md-background/90 active:bg-md-background/80 hover:shadow-md',
+  // For actions that destroy something. Colours cannot be swapped in through
+  // className, because both sets of classes would apply and the stylesheet
+  // order, not the class order, decides which one shows.
+  danger: 'bg-md-error text-md-on-error hover:bg-md-error/90 active:bg-md-error/80 hover:shadow-md',
+  'danger-outlined': 'border border-md-error/50 text-md-error hover:bg-md-error/5 active:bg-md-error/10',
 };
 
 const SIZES: Record<Size, string> = {
